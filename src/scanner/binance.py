@@ -42,18 +42,30 @@ def fetch_klines(symbol: str, interval: str, limit: int = 200) -> pd.DataFrame |
                 return None
 
             cols = [
-                "open_time", "open", "high", "low", "close", "volume",
-                "close_time", "qav", "trades", "tbb", "tbq", "ignore"
+                "open_time",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "close_time",
+                "qav",
+                "trades",
+                "tbb",
+                "tbq",
+                "ignore",
             ]
             df = pd.DataFrame(data, columns=cols)
             df["open_time"] = pd.to_datetime(df["open_time"], unit="ms", utc=True)
-            df = df.astype({
-                "open": float,
-                "high": float,
-                "low": float,
-                "close": float,
-                "volume": float
-            })
+            df = df.astype(
+                {
+                    "open": float,
+                    "high": float,
+                    "low": float,
+                    "close": float,
+                    "volume": float,
+                }
+            )
             return df
 
         except Exception as e:
