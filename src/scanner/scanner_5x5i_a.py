@@ -10,6 +10,7 @@
 
 import time
 from datetime import datetime
+
 import pytz
 
 from config.assets import ASSETS
@@ -17,7 +18,10 @@ from config.settings import SETTINGS
 from src.common.log import info, warn
 from src.common.csvio import read_csv_rows
 from src.scanner.binance import fetch_klines
-from src.scanner.decision_5x5i_a import add_features
+
+# ✅ FIX: add_features kommt aus indicators.py (nicht aus decision_5x5i_a.py)
+from src.scanner.indicators import add_features
+
 from src.scanner.decision_layer_5x5iA import evaluate_5x5iA
 from src.scanner.fib import fib_0236_level
 from src.scanner.signal_writer import make_signal_id, write_signal
@@ -29,11 +33,10 @@ def already_have_signal(signal_id: str, confirmed_path: str) -> bool:
     rows = read_csv_rows(confirmed_path)
     if not rows:
         return False
-    # Tail-check für Speed
     return any(r.get("signal_id") == signal_id for r in rows[-500:])
 
 
-def run_once():
+def run_once() -> None:
     for symbol in ASSETS:
         df1h = fetch_klines(symbol, SETTINGS.TF_1H, SETTINGS.CANDLE_LIMIT)
         df4h = fetch_klines(symbol, SETTINGS.TF_4H, SETTINGS.CANDLE_LIMIT)
@@ -62,13 +65,13 @@ def run_once():
 
         # Confirmed Rule (Proof): 1h + 4h gleiche Richtung UND beide >= 4
         if sig1 in ("LONG", "SHORT") and sig4 == sig1 and score1 >= 4 and score4 >= 4:
-            ts_signal = datetime.now(TZ).isoformat(timespec="seconds")  # local timestamp (Zurich)
+            ts_signal = datetime.now(TZ).isoformat(timespec="seconds")
 
             last_1h = df1h_f.iloc[-1]
             last_4h = df4h_f.iloc[-1]
 
             ema25_4h = float(last_4h["ema_25"])
-            fib0236 = float(fib_0236_level(df4h))  # bewusst df4h (raw) für Fib-Lookback
+            fib0236 = float(fib_0236_level(df4h))  # raw df4h für Fib-Lookback
             entry_ref = float(last_1h["close"])
 
             signal_id = make_signal_id(ts_signal, symbol, sig1)
@@ -98,7 +101,7 @@ def run_once():
             info(f"✅ CONFIRMED {symbol} {sig1} (1h={score1},4h={score4}) -> {signal_id}")
 
 
-def main():
+def main() -> None:
     info("🚀 Scanner 5x5i-A gestartet (Proof Mode)")
     while True:
         try:
