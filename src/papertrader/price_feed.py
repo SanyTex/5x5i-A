@@ -11,8 +11,11 @@ BASE_URLS = [
 ]
 PRICE_PATH = "/api/v3/ticker/price"
 
+# simple in-process cache to avoid spamming price endpoint
+_CACHE: dict[str, tuple[float, float]] = {}  # symbol -> (ts, price)
+CACHE_TTL_SECONDS = 2.0
 
-# Force IPv4 (fixes sporadic 'No route to host' on Raspberry Pi)
+
 def _force_ipv4_only():
     orig_getaddrinfo = socket.getaddrinfo
 
@@ -26,22 +29,39 @@ _force_ipv4_only()
 
 
 def get_price(symbol: str) -> float | None:
+    now = time.time()
+
+    # return cached price if fresh
+    if symbol in _CACHE:
+        ts, px = _CACHE[symbol]
+        if now - ts <= CACHE_TTL_SECONDS:
+            return px
+
     params = {"symbol": symbol}
 
+    # try primary first; on failure try ONE fallback (not all 4 in a storm)
+    tried = 0
     for base in BASE_URLS:
+        tried += 1
         try:
             r = requests.get(base + PRICE_PATH, params=params, timeout=10)
 
             if r.status_code == 429:
                 warn(f"Rate limit price {symbol} @ {base}")
-                time.sleep(1.0)
+                time.sleep(2.0)
                 continue
 
             r.raise_for_status()
-            return float(r.json()["price"])
+            px = float(r.json()["price"])
+            _CACHE[symbol] = (now, px)
+            return px
 
         except Exception as e:
             warn(f"Price error {symbol} @ {base}: {e}")
-            time.sleep(1.0)
+            # avoid hammering if network is flaky
+            time.sleep(2.0)
+            # hard-stop after 2 bases to prevent storm
+            if tried >= 2:
+                return None
 
     return None
