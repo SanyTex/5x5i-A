@@ -35,10 +35,9 @@ def run_once():
         df4h_f = add_features(df4h)
         df1d_f = add_features(df1d)
 
-        s1 = score_5x5i_A(df1h_f)
-        s4 = score_5x5i_A(df4h_f)
-        sd = score_5x5i_A(df1d_f)
-
+        s1 = evaluate_5x5iA(df1h_f, timeframe="1h")
+        s4 = evaluate_5x5iA(df4h_f, timeframe="4h")
+        sd = evaluate_5x5iA(df1d_f, timeframe="1d")
         # confirmed rule fuer Proof: 1h + 4h gleiche Richtung und beide >=4
         if (s1["signal"] in ("LONG","SHORT")
             and s4["signal"] == s1["signal"]
