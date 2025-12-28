@@ -1,12 +1,17 @@
+# src/scanner/indicators.py
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 
 
 def ema(series: pd.Series, span: int) -> pd.Series:
+    """Exponential Moving Average."""
     return series.ewm(span=span, adjust=False).mean()
 
 
 def rsi_wilder(close: pd.Series, period: int) -> pd.Series:
+    """RSI nach Wilder (EWMA mit alpha=1/period)."""
     delta = close.diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0)
@@ -20,6 +25,7 @@ def rsi_wilder(close: pd.Series, period: int) -> pd.Series:
 
 
 def macd(close: pd.Series, fast: int = 7, slow: int = 25, signal: int = 9):
+    """MACD (fast/slow/signal) -> (macd_line, signal_line, hist)."""
     fast_ema = ema(close, fast)
     slow_ema = ema(close, slow)
     macd_line = fast_ema - slow_ema
@@ -36,6 +42,11 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     - macd, macd_signal, macd_hist, macd_cross
     - high_volume, volume_followthrough
     """
+    required_cols = {"close", "volume"}
+    missing = required_cols - set(df.columns)
+    if missing:
+        raise ValueError(f"add_features: missing required columns: {sorted(missing)}")
+
     df = df.copy()
 
     # EMAs
@@ -56,7 +67,7 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     df["macd_hist"] = h
     df["macd_cross"] = (df["macd"] > df["macd_signal"]).astype(int)
 
-    # Volumen Flags (für evaluate_5x5iA)
+    # Volume Flags
     df["volume_ma"] = df["volume"].rolling(14, min_periods=1).mean()
     df["high_volume"] = df["volume"] > 1.05 * df["volume_ma"]
     df["volume_followthrough"] = df["volume"] >= df["volume"].shift(1)
