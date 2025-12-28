@@ -8,7 +8,8 @@ from src.common.log import info, warn
 from src.common.timeutils import utc_now_iso
 from src.common.csvio import read_csv_rows
 from src.scanner.binance import fetch_klines
-from src.scanner.decision_5x5i_a import add_features, score_5x5i_A
+from src.scanner.decision_5x5i_a import add_features 
+from src.scanner.decision_layer_5x5iA import evaluate_5x5iA
 from src.scanner.fib import fib_0236_level
 from src.scanner.signal_writer import make_signal_id, write_signal
 
