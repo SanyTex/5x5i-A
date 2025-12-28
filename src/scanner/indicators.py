@@ -1,4 +1,13 @@
-# src/scanner/indicators.py
+# ===============================================================
+# 📈 indicators.py – Feature Builder für 5x5i-A
+# ===============================================================
+# Liefert add_features(df) mit:
+# - ema_7/25/50/99/200
+# - rsi_6, rsi_14 (Wilder)
+# - macd, macd_signal, macd_hist, macd_cross (7/25/9)
+# - volume_ma, high_volume, volume_followthrough
+# ===============================================================
+
 from __future__ import annotations
 
 import numpy as np
@@ -6,12 +15,10 @@ import pandas as pd
 
 
 def ema(series: pd.Series, span: int) -> pd.Series:
-    """Exponential Moving Average."""
     return series.ewm(span=span, adjust=False).mean()
 
 
 def rsi_wilder(close: pd.Series, period: int) -> pd.Series:
-    """RSI nach Wilder (EWMA mit alpha=1/period)."""
     delta = close.diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0)
@@ -25,7 +32,6 @@ def rsi_wilder(close: pd.Series, period: int) -> pd.Series:
 
 
 def macd(close: pd.Series, fast: int = 7, slow: int = 25, signal: int = 9):
-    """MACD (fast/slow/signal) -> (macd_line, signal_line, hist)."""
     fast_ema = ema(close, fast)
     slow_ema = ema(close, slow)
     macd_line = fast_ema - slow_ema
@@ -35,17 +41,10 @@ def macd(close: pd.Series, fast: int = 7, slow: int = 25, signal: int = 9):
 
 
 def add_features(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Fügt alle Features hinzu, die decision_layer_5x5iA.py erwartet:
-    - ema_7/25/50/99/200
-    - rsi_6, rsi_14
-    - macd, macd_signal, macd_hist, macd_cross
-    - high_volume, volume_followthrough
-    """
-    required_cols = {"close", "volume"}
-    missing = required_cols - set(df.columns)
+    required = {"close", "volume"}
+    missing = required - set(df.columns)
     if missing:
-        raise ValueError(f"add_features: missing required columns: {sorted(missing)}")
+        raise ValueError(f"add_features: missing columns {sorted(missing)}")
 
     df = df.copy()
 
