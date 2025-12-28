@@ -1,6 +1,7 @@
 import socket
 import requests
 import pandas as pd
+import time
 from src.common.log import warn
 
 BASE_URLS = [
@@ -70,5 +71,6 @@ def fetch_klines(symbol: str, interval: str, limit: int = 200) -> pd.DataFrame |
 
         except Exception as e:
             warn(f"Fetch error {symbol} {interval} @ {base}: {e}")
+            time.sleep(1.5)
 
     return None
