@@ -3,10 +3,17 @@ import requests
 import pandas as pd
 from src.common.log import warn
 
-BASE_URL = "https://api.binance.com/api/v3/klines"
+# Mehrere Binance Endpoints als Fallback (CloudFront/Route-Probleme abfangen)
+BASE_URLS = [
+    "https://api.binance.com",
+    "https://api1.binance.com",
+    "https://api2.binance.com",
+    "https://api3.binance.com",
+]
+KLINES_PATH = "/api/v3/klines"
 
 
-# Force IPv4 for all outbound connections (fixes sporadic "No route to host" on some Pi/IPv6 setups)
+# Optional: IPv4 bevorzugen (hilft auf manchen Pi/IPv6 Setups)
 def _force_ipv4_only() -> None:
     orig_getaddrinfo = socket.getaddrinfo
 
@@ -22,12 +29,16 @@ _force_ipv4_only()
 def fetch_klines(symbol: str, interval: str, limit: int = 200) -> pd.DataFrame | None:
     params = {"symbol": symbol, "interval": interval, "limit": limit}
 
-    for attempt in range(3):
+    last_err: Exception | None = None
+
+    # Pro call: wir gehen die Endpoints durch und nehmen den ersten der funktioniert
+    for base in BASE_URLS:
+        url = base + KLINES_PATH
         try:
-            r = requests.get(BASE_URL, params=params, timeout=20)
+            r = requests.get(url, params=params, timeout=20)
 
             if r.status_code == 429:
-                warn(f"Rate limit {symbol} {interval} – retry {attempt+1}/3")
+                warn(f"Rate limit {symbol} {interval} @ {base} – try next endpoint")
                 continue
 
             r.raise_for_status()
@@ -45,6 +56,9 @@ def fetch_klines(symbol: str, interval: str, limit: int = 200) -> pd.DataFrame |
             return df
 
         except Exception as e:
-            warn(f"Fetch error {symbol} {interval}: {e}")
+            last_err = e
+            warn(f"Fetch error {symbol} {interval} @ {base}: {e}")
+            continue
 
+    # Wenn alle Endpoints failen:
     return None
