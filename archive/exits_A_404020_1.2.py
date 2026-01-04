@@ -1,4 +1,36 @@
 #Version 1.2 (universelle update_positions)
+def tp_splits():
+    return [
+        ("TP1", 0.40),
+        ("TP2", 0.40),
+        ("TP3", 0.20),
+    ]
+
+
+def tp_levels(entry: float, direction: str):
+    entry = float(entry)
+    direction = (direction or "LONG").upper()
+
+    p1, p2, p3 = 0.010, 0.022, 0.035
+
+    if direction == "SHORT":
+        return {
+            "TP1": entry * (1.0 - p1),
+            "TP2": entry * (1.0 - p2),
+            "TP3": entry * (1.0 - p3),
+        }
+
+    return {
+        "TP1": entry * (1.0 + p1),
+        "TP2": entry * (1.0 + p2),
+        "TP3": entry * (1.0 + p3),
+    }
+
+
+def after_tp2_sl_move(entry: float, direction: str):
+    tps = tp_levels(entry, direction)
+    return float(tps["TP1"])
+
 def update_positions(pt_dir: str, pt_tag: str, exits_mod, equity: dict, positions: dict):
     open_pos = positions.get("open", {})
     if not open_pos:
