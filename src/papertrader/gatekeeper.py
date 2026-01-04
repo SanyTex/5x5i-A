@@ -1,4 +1,5 @@
 # src/papertrader/gatekeeper.py
+# neu seit update version 1.2
 from __future__ import annotations
 
 from dataclasses import dataclass
