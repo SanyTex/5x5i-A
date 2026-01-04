@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Tuple, List
+from typing import Any, Dict, Optional, Tuple, List
 
 
 # -----------------------------
@@ -46,32 +46,33 @@ def _norm_side(side: str) -> str:
 
 def _remaining_qty(pos: Dict[str, Any]) -> float:
     """
-    Unified remaining qty getter supporting both old and new schemas.
+    Canonical remaining qty for our papertrader schema.
 
-    Supports:
-    - remaining_qty
-    - qty
-    - position_qty
-    - qty_open   (NEW: used by your PT positions.json)
-    Fallback:
-    - qty_total (if present and qty_open missing, treat as remaining)
+    Supports BOTH schemas:
+    - old: remaining_qty / qty / position_qty
+    - v1.2: qty_open (and qty_total)
     """
-    return _safe_float(
-        pos.get(
-            "remaining_qty",
-            pos.get(
-                "qty",
-                pos.get(
-                    "position_qty",
-                    pos.get(
-                        "qty_open",
-                        pos.get("qty_total", 0.0),
-                    ),
-                ),
-            ),
-        ),
-        0.0,
-    )
+    # v1.2 primary
+    q_open = _safe_float(pos.get("qty_open", None), default=float("nan"))
+    if q_open == q_open:  # not nan
+        return q_open
+
+    # fallbacks
+    return _safe_float(pos.get("remaining_qty", pos.get("qty", pos.get("position_qty", 0.0))), 0.0)
+
+
+def _initial_qty(pos: Dict[str, Any]) -> float:
+    """
+    Initial qty for sold_pct computation.
+    Supports:
+    - v1.2: qty_total
+    - old: initial_qty / qty_initial / initial_position_qty
+    """
+    q_total = _safe_float(pos.get("qty_total", None), default=float("nan"))
+    if q_total == q_total:  # not nan
+        return q_total
+
+    return _safe_float(pos.get("initial_qty", pos.get("qty_initial", pos.get("initial_position_qty", 0.0))), 0.0)
 
 
 # -----------------------------
@@ -87,9 +88,8 @@ def is_rest_position_not_active(pos: Dict[str, Any]) -> bool:
     according to Marvin's Restposition-Regel.
 
     Schema tolerant:
-    - uses initial_qty/qty_initial or initial_notional
-    - uses remaining_qty/qty or position_qty or qty_open
-    - uses sold_pct or computes it
+    - supports v1.2 qty_total/qty_open
+    - supports old initial_qty/remaining_qty
     - uses sl, break_even/be, entry_price as fallback
     - uses requires_management/managed flag as override if present
     """
@@ -102,10 +102,7 @@ def is_rest_position_not_active(pos: Dict[str, Any]) -> bool:
     # --- Compute sold_pct ---
     sold_pct = pos.get("sold_pct", None)
     if sold_pct is None:
-        initial_qty = _safe_float(
-            pos.get("initial_qty", pos.get("qty_initial", pos.get("initial_position_qty", pos.get("qty_total", 0.0)))),
-            0.0,
-        )
+        initial_qty = _initial_qty(pos)
         remaining_qty = _remaining_qty(pos)
 
         if initial_qty > 0:
@@ -114,7 +111,6 @@ def is_rest_position_not_active(pos: Dict[str, Any]) -> bool:
             # fallback: if we can't compute, assume not rest-position
             sold_pct = 0.0
     else:
-        # allow 0..100 or 0..1
         sold_pct = _safe_float(sold_pct, 0.0)
         if sold_pct > 1.0:
             sold_pct = sold_pct / 100.0
@@ -144,6 +140,7 @@ def is_rest_position_not_active(pos: Dict[str, Any]) -> bool:
     # Condition 3: no active setup decisions needed
     no_active_decisions = pos.get("no_active_decisions", None)
     if no_active_decisions is None:
+        # neutral fallback: if sold+sl>be satisfied, treat as rest
         cond_decisions = True
     else:
         cond_decisions = bool(no_active_decisions)
@@ -161,8 +158,9 @@ def counts_as_active_managed(pos: Dict[str, Any]) -> bool:
     if bool(pos.get("is_closed", False)) is True:
         return False
 
-    # 0 qty -> not active
-    if _remaining_qty(pos) <= 0:
+    # remaining qty -> not active
+    remaining_qty = _remaining_qty(pos)
+    if remaining_qty <= 0:
         return False
 
     # Restposition-Regel
@@ -212,7 +210,6 @@ def gatekeeper_can_open_trade(
     # 1) Enforce one position per symbol (no doubles)
     if enforce_one_position_per_symbol and sym in open_positions:
         pos = open_positions[sym]
-        # If it's still open (qty > 0)
         remaining_qty = _remaining_qty(pos)
         if remaining_qty > 0:
             return GatekeeperDecision(
