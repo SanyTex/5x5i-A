@@ -461,3 +461,65 @@ def update_positions(pt_dir: str, pt_tag: str, exits_mod, equity: dict, position
         pass
     except Exception:
         pass
+
+
+def run_papertrader_loop(pt_tag: str, pt_dir: str, exits_mod):
+    """
+    Main loop step:
+    - load state
+    - process new signals
+    - manage open positions (TP/SL)
+    - persist
+    """
+
+    p = _pt_paths(pt_dir)
+
+    # Load state
+    cursor = load_json(p["cursor"], {"last_index": -1})
+    positions = load_json(p["positions"], {"open": {}})
+    equity = load_json(p["equity_state"], {"balance": SETTINGS.START_BALANCE_USDT})
+
+    # 1) Manage existing positions first (important for freeing slots!)
+    update_positions(pt_dir, pt_tag, exits_mod, equity, positions)
+
+    # 2) Read signals
+    # Priority:
+    # - SETTINGS.SIGNAL_CSV (absolute or relative)
+    # - fallback: pt_dir/signals.csv
+    signal_csv = getattr(SETTINGS, "SIGNAL_CSV", None)
+    if not signal_csv:
+        signal_csv = os.path.join(pt_dir, "signals.csv")
+
+    rows = []
+    try:
+        rows = read_csv_rows(signal_csv)
+    except Exception as e:
+        warn(f"{pt_tag} cannot read signals at {signal_csv}: {e}")
+
+    last_index = int(cursor.get("last_index", -1))
+
+    # 3) Process only new rows
+    if rows:
+        for idx in range(last_index + 1, len(rows)):
+            r = rows[idx]
+            try:
+                open_position(pt_dir, pt_tag, exits_mod, r, equity, positions)
+            except Exception as e:
+                warn(f"{pt_tag} open_position error idx={idx}: {e}")
+
+            cursor["last_index"] = idx
+
+    # 4) Persist
+    save_json(p["cursor"], cursor)
+    save_json(p["positions"], positions)
+    save_json(p["equity_state"], equity)
+
+    # 5) Equity logging (throttled)
+    try:
+        _log_equity_throttled(pt_dir, pt_tag, float(equity.get("balance", 0.0)))
+    except Exception as e:
+        warn(f"{pt_tag} equity log error: {e}")
+
+    # 6) pacing
+    time.sleep(float(getattr(SETTINGS, "PT_LOOP_SLEEP_SEC", 2.0)))
+
