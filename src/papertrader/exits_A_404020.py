@@ -3,6 +3,29 @@ def update_positions(pt_dir: str, pt_tag: str, exits_mod, equity: dict, position
     if not open_pos:
         return
 
+    def _maybe_sl_move_after_tp(tp_key: str, entry: float, direction: str):
+        """
+        Supports:
+        - exits_mod.after_tp2_sl_move(entry, direction) triggered after TP2
+        - exits_mod.after_tp3_sl_move(entry, direction) triggered after TP3
+        Extendable later.
+        """
+        fn_name = None
+        if tp_key == "TP2" and hasattr(exits_mod, "after_tp2_sl_move"):
+            fn_name = "after_tp2_sl_move"
+        elif tp_key == "TP3" and hasattr(exits_mod, "after_tp3_sl_move"):
+            fn_name = "after_tp3_sl_move"
+
+        if not fn_name:
+            return None
+
+        try:
+            fn = getattr(exits_mod, fn_name)
+            return float(fn(entry, direction))
+        except Exception as e:
+            warn(f"{pt_tag} SL move error {tp_key}: {e}")
+            return None
+
     for symbol, pos in list(open_pos.items()):
         # --- PRICE FETCH ---
         try:
@@ -25,7 +48,7 @@ def update_positions(pt_dir: str, pt_tag: str, exits_mod, equity: dict, position
             positions["open"].pop(symbol, None)
             continue
 
-        # Ensure new patch fields exist (backward compatibility)
+        # Ensure patch fields exist (backward compatibility)
         pos.setdefault("break_even", entry)
         pos.setdefault("no_active_decisions", False)
         pos.setdefault("filled", {})
@@ -70,7 +93,7 @@ def update_positions(pt_dir: str, pt_tag: str, exits_mod, equity: dict, position
             continue
 
         # -----------------------------
-        # TAKE PROFITS (TP1/TP2/TP3)
+        # TAKE PROFITS (generic TP1..TPn)
         # -----------------------------
         tps = pos.get("tps")
         if not isinstance(tps, dict):
@@ -87,10 +110,10 @@ def update_positions(pt_dir: str, pt_tag: str, exits_mod, equity: dict, position
             filled = {}
             pos["filled"] = filled
 
-        def tp_hit(tp_price: float) -> bool:
+        def _tp_hit(tp_price: float) -> bool:
             return (px >= tp_price) if direction == "LONG" else (px <= tp_price)
 
-        # Execute in order: TP1 -> TP2 -> TP3
+        # Execute fills in defined split order
         for tp_key, pct in splits:
             if qty_open <= 0:
                 break
@@ -102,7 +125,7 @@ def update_positions(pt_dir: str, pt_tag: str, exits_mod, equity: dict, position
             if tp_price <= 0:
                 continue
 
-            if not tp_hit(tp_price):
+            if not _tp_hit(tp_price):
                 continue
 
             pct = float(pct)
@@ -148,25 +171,21 @@ def update_positions(pt_dir: str, pt_tag: str, exits_mod, equity: dict, position
 
             info(f"🟡 {pt_tag} {tp_key} {symbol} {direction} exit={exit_fill:.6f} qty={fill_qty:.6f} pnl={pnl:.2f} fee={fee:.2f} remain={qty_open:.6f}")
 
-            # -----------------------------
-            # SL MOVE RULE (System A): after TP2 -> SL to TP1 level
-            # -----------------------------
-            if tp_key == "TP2":
-                try:
-                    new_sl = float(exits_mod.after_tp2_sl_move(entry, direction))
-                    pos["sl"] = new_sl
-                    pos["moved_sl"] = True
-                    _log_event(pt_dir, pt_tag, {
-                        "type": "SL_MOVE_AFTER_TP2",
-                        "symbol": symbol,
-                        "direction": direction,
-                        "new_sl": new_sl,
-                    })
-                    info(f"🔧 {pt_tag} SL_MOVE {symbol} {direction} -> {new_sl:.6f} (after TP2)")
-                except Exception as e:
-                    warn(f"{pt_tag} SL move error {symbol}: {e}")
+            # Optional SL move rule (variant-specific)
+            new_sl = _maybe_sl_move_after_tp(tp_key, entry, direction)
+            if new_sl is not None and new_sl > 0:
+                pos["sl"] = float(new_sl)
+                pos["moved_sl"] = True
+                _log_event(pt_dir, pt_tag, {
+                    "type": "SL_MOVE",
+                    "symbol": symbol,
+                    "direction": direction,
+                    "new_sl": float(new_sl),
+                    "after_tp": tp_key,
+                })
+                info(f"🔧 {pt_tag} SL_MOVE {symbol} {direction} -> {float(new_sl):.6f} (after {tp_key})")
 
-            # Patch 1.2: Restposition-Regel nach jedem Fill/SL-move prüfen
+            # Patch 1.2: Restposition-Regel nach Fill/SL-Move prüfen
             _maybe_mark_restposition(pos)
 
         # -----------------------------
