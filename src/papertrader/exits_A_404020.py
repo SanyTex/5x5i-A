@@ -1,10 +1,5 @@
-# exits_A_404020.py Version 1.2.1
-
+#Version 1.2 (universelle update_positions)
 def tp_splits():
-    """
-    System A TP-Struktur: 40% / 40% / 20%
-    Reihenfolge ist wichtig: TP1 -> TP2 -> TP3
-    """
     return [
         ("TP1", 0.40),
         ("TP2", 0.40),
@@ -13,27 +8,10 @@ def tp_splits():
 
 
 def tp_levels(entry: float, direction: str):
-    """
-    Default TP-Levels fuer System A (konservativ).
-    Du kannst diese Werte spaeter gegen Fib / ATR Logik ersetzen.
-
-    LONG:
-      TP1 = +1.0%
-      TP2 = +2.2%
-      TP3 = +3.5%
-
-    SHORT:
-      TP1 = -1.0%
-      TP2 = -2.2%
-      TP3 = -3.5%
-    """
     entry = float(entry)
     direction = (direction or "LONG").upper()
 
-    # Prozentziele
-    p1 = 0.010
-    p2 = 0.022
-    p3 = 0.035
+    p1, p2, p3 = 0.010, 0.022, 0.035
 
     if direction == "SHORT":
         return {
@@ -42,7 +20,6 @@ def tp_levels(entry: float, direction: str):
             "TP3": entry * (1.0 - p3),
         }
 
-    # LONG default
     return {
         "TP1": entry * (1.0 + p1),
         "TP2": entry * (1.0 + p2),
@@ -51,14 +28,9 @@ def tp_levels(entry: float, direction: str):
 
 
 def after_tp2_sl_move(entry: float, direction: str):
-    """
-    Nach TP2: SL der Restposition auf TP1-Level.
-    """
     tps = tp_levels(entry, direction)
     return float(tps["TP1"])
 
-
-#Version 1.2 (universelle update_positions)
 def update_positions(pt_dir: str, pt_tag: str, exits_mod, equity: dict, positions: dict):
     open_pos = positions.get("open", {})
     if not open_pos:
@@ -230,7 +202,7 @@ def update_positions(pt_dir: str, pt_tag: str, exits_mod, equity: dict, position
                 "qty_open": qty_open,
             })
 
-            info(f"🟡 {pt_tag} {tp_key} {symbol} {direction} exit={exit_fill:.6f} qty={fill_qty:.6f}  pnl={pnl:.2f} fee={fee:.2f} remain={qty_open:.6f}")
+            info(f"🟡 {pt_tag} {tp_key} {symbol} {direction} exit={exit_fill:.6f} qty={fill_qty:.6f} pnl={pnl:.2f} fee={fee:.2f} remain={qty_open:.6f}")
 
             # Optional SL move rule (variant-specific)
             new_sl = _maybe_sl_move_after_tp(tp_key, entry, direction)
