@@ -169,6 +169,8 @@ def open_position(pt_dir: str, pt_tag: str, exits_mod, signal_row: dict, equity:
         "splits": splits,
         "filled": {k: 0.0 for k, _ in splits},
         "moved_sl": False,
+        "break_even": entry,
+        "no_active_decisions": False,
         "signal_id": signal_row.get("signal_id", ""),
         "ts_open": utc_now_iso(),
     }
