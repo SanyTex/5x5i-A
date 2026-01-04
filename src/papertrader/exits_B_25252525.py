@@ -1,3 +1,4 @@
+#Version 1.2 (universelle update_positions)
 def update_positions(pt_dir: str, pt_tag: str, exits_mod, equity: dict, positions: dict):
     open_pos = positions.get("open", {})
     if not open_pos:
