@@ -4,7 +4,7 @@
 # - Holt Klines (1h/4h/1d)
 # - Add Features (EMA/RSI/MACD/Vol flags)
 # - Bewertet mit evaluate_5x5iA()
-# - ✅ NEU: Loggt JEDE Bewertung (auch NONE) in scanner_eval_5x5iA.jsonl
+# - ✅ NEU: Loggt JEDE Bewertung (auch NONE) als JSONL (FULL + optional FOCUS + Daily roll)
 # - Confirmed: 1h + 4h gleiche Richtung UND beide score_overall >= 4
 # - Schreibt signals_confirmed.csv (append-only)
 # ===============================================================
@@ -20,15 +20,16 @@ from src.common.log import info, warn
 from src.common.csvio import read_csv_rows
 from src.scanner.binance import fetch_klines
 
-# ✅ FIX: add_features kommt aus indicators.py (nicht aus decision_5x5i_a.py)
+# ✅ Features (EMA/RSI/MACD/Vol flags)
 from src.scanner.indicators import add_features
 
 from src.scanner.decision_layer_5x5iA import evaluate_5x5iA
 from src.scanner.fib import fib_0236_level
 from src.scanner.signal_writer import make_signal_id, write_signal
 
-# ✅ NEU: Vollstaendiges Eval-Logging
+# ✅ NEU: Vollstaendiges Eval-Logging (JSONL)
 from src.scanner.scanner_eval_logger import append_eval_jsonl
+
 
 TZ = pytz.timezone("Europe/Zurich")
 
@@ -63,15 +64,14 @@ def run_once() -> None:
         sd = evaluate_5x5iA(df1d_f, timeframe="1d")
 
         # -----------------------------------------------------------
-        # ✅ NEU: Jede Bewertung loggen (auch NONE)
+        # ✅ NEU: Jede Bewertung loggen (FULL) + gefiltert loggen (FOCUS) + Daily roll
         # (direkt nach den Evaluations, bevor Confirm-Rule greift)
         # -----------------------------------------------------------
         try:
             run_ts_utc = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
-            eval_path = SETTINGS.SCANNER_EVAL_LOG  # muss in config/settings.py existieren
 
             append_eval_jsonl(
-                eval_path,
+                base_dir=SETTINGS.SCANNER_EVAL_DIR,
                 run_ts_utc=run_ts_utc,
                 bot_tag=SETTINGS.BOT_TAG,
                 symbol=symbol,
@@ -79,9 +79,16 @@ def run_once() -> None:
                 decision=s1,
                 last_row=df1h_f.iloc[-1],
                 scan_run_id=None,
+                roll_daily=SETTINGS.SCANNER_EVAL_ROLL_DAILY,
+                full_prefix=SETTINGS.SCANNER_EVAL_FULL_PREFIX,
+                focus_prefix=SETTINGS.SCANNER_EVAL_FOCUS_PREFIX,
+                focus_min_score=SETTINGS.SCANNER_EVAL_FOCUS_MIN_SCORE,
+                focus_only_signals=SETTINGS.SCANNER_EVAL_FOCUS_ONLY_SIGNALS,
+                gzip_yesterday=SETTINGS.SCANNER_EVAL_GZIP_YESTERDAY,
             )
+
             append_eval_jsonl(
-                eval_path,
+                base_dir=SETTINGS.SCANNER_EVAL_DIR,
                 run_ts_utc=run_ts_utc,
                 bot_tag=SETTINGS.BOT_TAG,
                 symbol=symbol,
@@ -89,9 +96,16 @@ def run_once() -> None:
                 decision=s4,
                 last_row=df4h_f.iloc[-1],
                 scan_run_id=None,
+                roll_daily=SETTINGS.SCANNER_EVAL_ROLL_DAILY,
+                full_prefix=SETTINGS.SCANNER_EVAL_FULL_PREFIX,
+                focus_prefix=SETTINGS.SCANNER_EVAL_FOCUS_PREFIX,
+                focus_min_score=SETTINGS.SCANNER_EVAL_FOCUS_MIN_SCORE,
+                focus_only_signals=SETTINGS.SCANNER_EVAL_FOCUS_ONLY_SIGNALS,
+                gzip_yesterday=SETTINGS.SCANNER_EVAL_GZIP_YESTERDAY,
             )
+
             append_eval_jsonl(
-                eval_path,
+                base_dir=SETTINGS.SCANNER_EVAL_DIR,
                 run_ts_utc=run_ts_utc,
                 bot_tag=SETTINGS.BOT_TAG,
                 symbol=symbol,
@@ -99,7 +113,14 @@ def run_once() -> None:
                 decision=sd,
                 last_row=df1d_f.iloc[-1],
                 scan_run_id=None,
+                roll_daily=SETTINGS.SCANNER_EVAL_ROLL_DAILY,
+                full_prefix=SETTINGS.SCANNER_EVAL_FULL_PREFIX,
+                focus_prefix=SETTINGS.SCANNER_EVAL_FOCUS_PREFIX,
+                focus_min_score=SETTINGS.SCANNER_EVAL_FOCUS_MIN_SCORE,
+                focus_only_signals=SETTINGS.SCANNER_EVAL_FOCUS_ONLY_SIGNALS,
+                gzip_yesterday=SETTINGS.SCANNER_EVAL_GZIP_YESTERDAY,
             )
+
         except Exception as e:
             # Logging darf den Scanner nie killen
             warn(f"{symbol}: eval-log error: {e}")
