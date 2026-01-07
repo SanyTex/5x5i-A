@@ -1,5 +1,7 @@
 #Version 1.2
 from dataclasses import dataclass
+# irgendwo in SETTINGS ergänzen
+SCANNER_EVAL_LOG: str = "data_5x5iA/scanner_eval_5x5iA.jsonl"
 
 
 @dataclass(frozen=True)
