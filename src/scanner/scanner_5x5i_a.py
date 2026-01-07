@@ -21,6 +21,8 @@ from src.scanner.binance import fetch_klines
 
 # ✅ FIX: add_features kommt aus indicators.py (nicht aus decision_5x5i_a.py)
 from src.scanner.indicators import add_features
+# oben bei imports ergänzen
+from src.scanner.scanner_eval_logger import append_eval_jsonl
 
 from src.scanner.decision_layer_5x5iA import evaluate_5x5iA
 from src.scanner.fib import fib_0236_level
