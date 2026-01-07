@@ -25,6 +25,20 @@ class Settings:
 
     # ✅ NEU: Vollstaendiges Scanner-Eval-Log (JSONL)
     SCANNER_EVAL_LOG: str = "data_5x5iA/scanner_eval_5x5iA.jsonl"
+    # Eval Logs (Scanner Forensik)
+    SCANNER_EVAL_DIR: str = "data_5x5iA"  # wird relativ zum Working-Dir genutzt
+    SCANNER_EVAL_ROLL_DAILY: bool = True  # Option A
+    
+    # Option C: Split FULL + FOCUS
+    SCANNER_EVAL_FULL_PREFIX: str = "scanner_eval_5x5iA_full"
+    SCANNER_EVAL_FOCUS_PREFIX: str = "scanner_eval_5x5iA_focus"
+    
+    # Option B: Focus Filter (nur für FOCUS-Log)
+    SCANNER_EVAL_FOCUS_MIN_SCORE: int = 3
+    SCANNER_EVAL_FOCUS_ONLY_SIGNALS: bool = False  # True => nur LONG/SHORT
+    
+    # Optional: Vortag automatisch gzippen
+    SCANNER_EVAL_GZIP_YESTERDAY: bool = True
 
     # Papertrader reads confirmed signals by default
     SIGNAL_CSV: str = SIGNALS_CONFIRMED
